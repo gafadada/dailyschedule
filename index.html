@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>每日任务</title>
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="每日任务">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='3' y='3' width='26' height='26' fill='white' stroke='%231a1a1a' stroke-width='2.5'/><path d='M9 16.5l4.5 4.5L23 11' fill='none' stroke='%231a1a1a' stroke-width='2.5' stroke-linecap='square' stroke-linejoin='miter'/></svg>">
+<link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22%E6%AF%8F%E6%97%A5%E4%BB%BB%E5%8A%A1%22%2C%22short_name%22%3A%22%E6%AF%8F%E6%97%A5%E4%BB%BB%E5%8A%A1%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23ffffff%22%2C%22theme_color%22%3A%22%23ffffff%22%7D">
+<style>
+/* ===== 基础重置 ===== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+  color: #1a1a1a;
+  background: #f4f4f4;
+  line-height: 1.5;
+}
+button { font: inherit; color: inherit; }
+ul { list-style: none; }
+
+/* ===== 容器：手机全屏，桌面居中窄栏 ===== */
+.app {
+  max-width: 480px;
+  min-height: 100vh;
+  margin: 0 auto;
+  background: #fff;
+  padding: 22px 18px calc(24px + env(safe-area-inset-bottom));
+  border-left: 1px solid #e8e8e8;
+  border-right: 1px solid #e8e8e8;
+}
+
+/* ===== 日期区 ===== */
+.date-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 14px;
+  border-bottom: 1.5px solid #1a1a1a;
+}
+.nav-btn {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-btn:active { opacity: .35; }
+.date-pick-btn {
+  border: 0;
+  background: none;
+  text-align: center;
+  padding: 6px 10px;
+}
+.date-main { display: block; font-size: 20px; font-weight: 600; letter-spacing: .5px; }
+.date-week { display: block; font-size: 13px; color: #777; margin-top: 2px; }
+.hidden-date { position: absolute; left: -9999px; top: 0; width: 1px; height: 1px; opacity: 0; }
+
+/* ===== 板块小标题（每日任务用） ===== */
+.daily-head {
+  margin-top: 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.section-title { font-size: 13px; font-weight: 700; letter-spacing: 2px; }
+
+/* ===== 近期大任务板块（粗边框，醒目） ===== */
+.span-section {
+  margin-top: 20px;
+  border: 1.5px solid #1a1a1a;
+  padding: 12px 14px 14px;
+}
+.span-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #1a1a1a;
+  margin-bottom: 2px;
+}
+.span-title { font-size: 15px; font-weight: 700; letter-spacing: 2px; }
+.span-count { font-size: 12px; color: #777; }
+.span-head { cursor: pointer; }
+.span-toggle {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.span-toggle::before { content: ""; position: absolute; inset: -6px; }
+.span-toggle svg { transition: transform .18s ease; }
+.span-section.collapsed .span-toggle svg { transform: rotate(180deg); }
+.span-section.collapsed #spanList,
+.span-section.collapsed #spanAdd { display: none; }
+.span-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #ececec;
+}
+.span-row:last-of-type { border-bottom: 0; }
+.square-check {
+  position: relative;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin-top: 3px;
+  border: 1.5px solid #1a1a1a;
+  border-radius: 0;
+  background: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* 伪元素把触控热区扩到 44px */
+.square-check::before { content: ""; position: absolute; inset: -9px; }
+.square-check svg { display: none; }
+.span-row.done .square-check { background: #1a1a1a; }
+.span-row.done .square-check svg { display: block; }
+.span-main { flex: 1; min-width: 0; }
+.span-input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 16px;
+  color: #1a1a1a;
+  padding: 2px 0;
+}
+.span-row.done .span-input { color: #b0b0b0; text-decoration: line-through; }
+.due-row { display: flex; align-items: center; gap: 6px; margin-top: 7px; }
+.due-text {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #1a1a1a;
+  background: #fff;
+  font-size: 12px;
+  font-family: inherit;
+  color: #1a1a1a;
+  padding: 5px 7px;
+}
+.due-text.overdue { background: #1a1a1a; color: #fff; }
+.due-cal {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #1a1a1a;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.due-cal::before { content: ""; position: absolute; inset: -6px; }
+.due-cal:active { opacity: .6; }
+.span-del {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: none;
+  color: #999;
+  font-size: 20px;
+  margin-top: 2px;
+}
+.span-del:active { color: #1a1a1a; }
+.span-add {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  background: #fff;
+  border: 1px dashed #1a1a1a;
+  font-size: 14px;
+}
+.span-add:active { background: #1a1a1a; color: #fff; }
+
+/* ===== 每日任务进度小字 ===== */
+.progress { font-size: 13px; color: #888; padding: 8px 0 2px; }
+.progress:empty { display: none; }
+
+/* ===== 每日任务行 ===== */
+.task-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #ececec;
+}
+.check-btn {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid #1a1a1a;
+  border-radius: 50%;
+  background: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* 伪元素把触控热区扩到 44px */
+.check-btn::before { content: ""; position: absolute; inset: -7px; }
+.check-btn svg { display: none; }
+.task-row.done .check-btn { background: #1a1a1a; }
+.task-row.done .check-btn svg { display: block; }
+.task-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 16px;
+  color: #1a1a1a;
+  padding: 8px 0;
+}
+.task-row.done .task-input { color: #b0b0b0; text-decoration: line-through; }
+.del-btn {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: none;
+  color: #999;
+  font-size: 20px;
+}
+.del-btn:active { color: #1a1a1a; }
+
+/* ===== 失败键与失败行（红色） ===== */
+.fail-btn {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid #1a1a1a;
+  border-radius: 0;
+  background: none;
+  color: #1a1a1a;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fail-btn::before { content: ""; position: absolute; inset: -7px; }
+.task-row.failed .fail-btn { background: #c8341f; border-color: #c8341f; color: #fff; }
+.task-row.failed .task-input { color: #c8341f; }
+
+/* ===== 同步昨日按钮 ===== */
+.sync-btn {
+  border: 1px solid #1a1a1a;
+  background: #fff;
+  font-size: 12px;
+  padding: 5px 10px;
+}
+.sync-btn:active { background: #1a1a1a; color: #fff; }
+
+/* ===== 隐蔽数据入口（默认几乎隐形） ===== */
+.data-dock { margin-top: 28px; text-align: center; }
+.dock-toggle {
+  border: 0;
+  background: none;
+  font-size: 11px;
+  color: #c4c4c4;
+  letter-spacing: 3px;
+  padding: 8px 14px;
+}
+.dock-toggle:active { color: #777; }
+.dock-panel {
+  display: none;
+  margin-top: 8px;
+  text-align: left;
+  border: 1px solid #d8d8d8;
+  padding: 14px;
+}
+.data-dock.open .dock-panel { display: block; }
+.dock-panel h4 { font-size: 13px; letter-spacing: 1px; margin-bottom: 8px; }
+.dock-guide { font-size: 12px; color: #555; }
+.dock-guide p { margin: 6px 0; }
+.dock-guide details { margin: 6px 0; }
+.dock-guide summary { cursor: pointer; }
+.dock-guide pre {
+  border: 1px solid #e2e2e2;
+  padding: 8px;
+  font-size: 11px;
+  overflow-x: auto;
+  white-space: pre;
+}
+.dock-guide button {
+  border: 1px solid #1a1a1a;
+  background: #fff;
+  font-size: 12px;
+  padding: 6px 10px;
+  margin: 4px 0;
+}
+.dock-guide button:active { background: #1a1a1a; color: #fff; }
+#importText {
+  width: 100%;
+  min-height: 130px;
+  border: 1px solid #1a1a1a;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 8px;
+  margin-top: 8px;
+}
+.dock-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.dock-actions button {
+  flex: 1;
+  min-width: 80px;
+  border: 1px solid #1a1a1a;
+  background: #fff;
+  font-size: 12px;
+  padding: 8px;
+}
+.dock-actions .primary { background: #1a1a1a; color: #fff; }
+#dockMsg { font-size: 12px; color: #c8341f; margin-top: 6px; }
+
+/* ===== 每日任务添加按钮 ===== */
+.add-btn {
+  width: 100%;
+  margin-top: 18px;
+  padding: 13px;
+  background: #fff;
+  border: 1px solid #1a1a1a;
+  font-size: 15px;
+}
+.add-btn:active { background: #1a1a1a; color: #fff; }
+
+/* ===== 桌面端微调 ===== */
+@media (min-width: 768px) {
+  body { padding: 30px 0; }
+  .app { min-height: calc(100vh - 60px); }
+}
+</style>
+</head>
+<body>
+<main class="app">
+  <!-- ===== 日期区 ===== -->
+  <header class="date-bar">
+    <button id="prevDay" class="nav-btn" aria-label="前一天">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter"/></svg>
+    </button>
+    <button id="pickDate" class="date-pick-btn" aria-label="选择日期">
+      <span id="dateMain" class="date-main"></span>
+      <span id="dateWeek" class="date-week"></span>
+    </button>
+    <input type="date" id="dateInput" class="hidden-date">
+    <button id="nextDay" class="nav-btn" aria-label="后一天">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter"/></svg>
+    </button>
+  </header>
+
+  <!-- ===== 近期大任务板块 ===== -->
+  <section class="span-section">
+    <div class="span-head">
+      <h2 class="span-title">近期大任务</h2>
+      <span id="spanCount" class="span-count"></span>
+      <span class="span-toggle" id="spanToggle" aria-label="折叠或展开大任务">
+        <svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter"/></svg>
+      </span>
+    </div>
+    <ul id="spanList"></ul>
+    <button id="spanAdd" class="span-add">+ 加一个大任务</button>
+  </section>
+
+  <!-- ===== 每日任务板块 ===== -->
+  <div class="daily-head">
+    <h2 class="section-title">每日任务</h2>
+    <button id="syncBtn" class="sync-btn">同步昨日未完成</button>
+  </div>
+  <div id="progress" class="progress"></div>
+  <ul id="taskList"></ul>
+  <button id="addBtn" class="add-btn">+ 添加一行</button>
+  <!-- ===== 隐蔽数据入口：日常几乎注意不到 ===== -->
+  <div class="data-dock" id="dataDock">
+    <button id="dockToggle" class="dock-toggle">导入计划</button>
+    <div class="dock-panel">
+      <h4>数据导入 / 导出</h4>
+      <div class="dock-guide">
+        <p>第一步：点下面按钮复制提示词，连同你的计划一起发给任意 AI，它会输出一段 JSON</p>
+        <button id="copyPrompt">复制 AI 提示词</button>
+        <details>
+          <summary>查看格式示例（不懂 JSON 再点开）</summary>
+          <pre>{
+  "format": "daily-tasks",
+  "version": 1,
+  "daily": {
+    "2026-11-09": [
+      { "text": "示例任务", "done": false, "failed": false }
+    ]
+  },
+  "span": [
+    { "text": "示例大任务", "due": "2026-11-16", "done": false, "dueText": "" }
+  ]
+}</pre>
+        </details>
+        <p>第二步：把 AI 输出的 JSON 粘贴到下面文本框，也可以选 .json 文件</p>
+        <p>第三步：点确认导入，任务会追加到对应日期，不会清掉已有内容</p>
+      </div>
+      <textarea id="importText" spellcheck="false" placeholder="把 JSON 粘贴在这里"></textarea>
+      <div class="dock-actions">
+        <button id="pickFileBtn">选择文件</button>
+        <input type="file" id="jsonFile" accept=".json,application/json" hidden>
+        <button id="buildExportBtn">填入我的导出</button>
+        <button id="confirmImport" class="primary">确认导入</button>
+      </div>
+      <div id="dockMsg"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ===== 存储与状态 ===== */
+var STORE_KEY = 'daily-tasks-v1';
+var SPAN_KEY = '__span__';
+var store;
+try { store = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }
+catch (e) { store = {}; }
+
+var currentDate = keyOf(new Date());
+
+function keyOf(d) {
+  var m = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + m + '-' + day;
+}
+function tasksOf(key) {
+  if (!store[key]) store[key] = [];
+  return store[key];
+}
+function spanTasks() {
+  if (!store[SPAN_KEY]) store[SPAN_KEY] = [];
+  return store[SPAN_KEY];
+}
+function save() { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function dayDiff(aKey, bKey) {
+  var a = new Date(aKey + 'T00:00:00');
+  var b = new Date(bKey + 'T00:00:00');
+  return Math.round((b - a) / 86400000);
+}
+function defaultDue() {
+  var d = new Date();
+  d.setDate(d.getDate() + 7);
+  return keyOf(d);
+}
+
+/* ===== DOM 引用 ===== */
+var listEl = document.getElementById('taskList');
+var progressEl = document.getElementById('progress');
+var dateMainEl = document.getElementById('dateMain');
+var dateWeekEl = document.getElementById('dateWeek');
+var dateInputEl = document.getElementById('dateInput');
+var spanListEl = document.getElementById('spanList');
+var spanCountEl = document.getElementById('spanCount');
+
+var WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+
+/* ===== 日期渲染 ===== */
+function renderDate() {
+  var parts = currentDate.split('-');
+  var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  dateMainEl.textContent = parts[0] + '年' + Number(parts[1]) + '月' + Number(parts[2]) + '日';
+  dateWeekEl.textContent = '星期' + WEEK[d.getDay()];
+  dateInputEl.value = currentDate;
+}
+
+/* ===== 每日任务渲染 ===== */
+function rowHTML(t) {
+  var stateClass = t.done ? ' done' : (t.failed ? ' failed' : '');
+  return '<li class="task-row' + stateClass + '" data-row="' + t.id + '">'
+    + '<button class="check-btn" data-id="' + t.id + '" aria-label="切换完成状态">'
+    + '<svg viewBox="0 0 24 24" width="15" height="15"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="butt" stroke-linejoin="miter"/></svg>'
+    + '</button>'
+    + '<input class="task-input" data-id="' + t.id + '" type="text" value="' + escapeAttr(t.text) + '" placeholder="任务内容">'
+    + '<button class="fail-btn" data-id="' + t.id + '" aria-label="标记任务失败">!</button>'
+    + '<button class="del-btn" data-id="' + t.id + '" aria-label="删除此任务">×</button>'
+    + '</li>';
+}
+function escapeAttr(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function renderTasks(focusId) {
+  var tasks = tasksOf(currentDate);
+  listEl.innerHTML = tasks.map(rowHTML).join('');
+  var doneCount = tasks.filter(function (t) { return t.done; }).length;
+  var failedCount = tasks.filter(function (t) { return t.failed; }).length;
+  progressEl.textContent = tasks.length ? ('完成 ' + doneCount + ' / 失败 ' + failedCount + ' / 共 ' + tasks.length + ' 条') : '';
+  if (focusId) {
+    var input = listEl.querySelector('input[data-id="' + focusId + '"]');
+    if (input) input.focus();
+  }
+}
+
+/* ===== 大任务渲染 ===== */
+function dueInfo(t) {
+  var dp = t.due.split('-');
+  var dateStr = Number(dp[1]) + '月' + Number(dp[2]) + '日';
+  var diff = dayDiff(t.due, keyOf(new Date()));
+  var text, overdue = false;
+  if (diff === 0) text = dateStr + ' · 今天截止';
+  else if (diff === 1) text = dateStr + ' · 明天截止';
+  else if (diff > 1) text = dateStr + ' · 还剩' + diff + '天';
+  else { text = dateStr + ' · 逾期' + (-diff) + '天'; overdue = true; }
+  return { text: text, overdue: overdue && !t.done };
+}
+/* 手动写过就显示手写内容，否则用自动计算文案 */
+function dueDisplay(t) {
+  if (t.dueText) return { text: t.dueText, overdue: false };
+  return dueInfo(t);
+}
+function spanRowHTML(t) {
+  var info = dueDisplay(t);
+  return '<li class="span-row' + (t.done ? ' done' : '') + '" data-srow="' + t.id + '">'
+    + '<button class="square-check" data-sid="' + t.id + '" aria-label="切换完成状态">'
+    + '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="butt" stroke-linejoin="miter"/></svg>'
+    + '</button>'
+    + '<div class="span-main">'
+    + '<input class="span-input" data-sid="' + t.id + '" type="text" value="' + escapeAttr(t.text) + '" placeholder="几天内要完成的大事">'
+    + '<div class="due-row">'
+    + '<input class="due-text' + (info.overdue ? ' overdue' : '') + '" data-sid="' + t.id + '" type="text" value="' + escapeAttr(info.text) + '" placeholder="可手写截止说明">'
+    + '<button class="due-cal" data-sid="' + t.id + '" aria-label="选择截止日期">'
+    + '<svg viewBox="0 0 24 24" width="15" height="15"><rect x="3.5" y="5" width="17" height="15" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 9h17M8 2.5v4M16 2.5v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"/></svg>'
+    + '</button>'
+    + '<input type="date" class="hidden-date due-input" data-sid="' + t.id + '" value="' + t.due + '">'
+    + '</div>'
+    + '</div>'
+    + '<button class="span-del" data-sid="' + t.id + '" aria-label="删除此任务">×</button>'
+    + '</li>';
+}
+function renderSpan(focusId) {
+  var tasks = spanTasks();
+  spanListEl.innerHTML = tasks.map(spanRowHTML).join('');
+  var active = tasks.filter(function (t) { return !t.done; }).length;
+  spanCountEl.textContent = tasks.length ? (active + ' 项进行中') : '';
+  if (focusId) {
+    var input = spanListEl.querySelector('input.span-input[data-sid="' + focusId + '"]');
+    if (input) input.focus();
+  }
+}
+
+function renderAll() { renderDate(); renderSpan(); renderTasks(); }
+
+/* ===== 每日任务事件委托 ===== */
+listEl.addEventListener('click', function (e) {
+  var btn = e.target.closest('button');
+  if (!btn) return;
+  var id = btn.dataset.id;
+  var tasks = tasksOf(currentDate);
+  if (btn.classList.contains('check-btn')) {
+    var target = tasks.find(function (t) { return t.id === id; });
+    if (target) {
+      target.done = !target.done;
+      if (target.done) target.failed = false;
+      save(); renderTasks();
+    }
+  } else if (btn.classList.contains('fail-btn')) {
+    var failTarget = tasks.find(function (t) { return t.id === id; });
+    if (failTarget) {
+      failTarget.failed = !failTarget.failed;
+      if (failTarget.failed) failTarget.done = false;
+      save(); renderTasks();
+    }
+  } else if (btn.classList.contains('del-btn')) {
+    store[currentDate] = tasks.filter(function (t) { return t.id !== id; });
+    save(); renderTasks();
+  }
+});
+listEl.addEventListener('input', function (e) {
+  if (!e.target.classList.contains('task-input')) return;
+  var target = tasksOf(currentDate).find(function (t) { return t.id === e.target.dataset.id; });
+  if (target) { target.text = e.target.value; save(); }
+});
+
+/* ===== 大任务事件委托 ===== */
+spanListEl.addEventListener('click', function (e) {
+  var btn = e.target.closest('button');
+  if (!btn) return;
+  var id = btn.dataset.sid;
+  var tasks = spanTasks();
+  if (btn.classList.contains('square-check')) {
+    var target = tasks.find(function (t) { return t.id === id; });
+    if (target) { target.done = !target.done; save(); renderSpan(); }
+  } else if (btn.classList.contains('span-del')) {
+    store[SPAN_KEY] = tasks.filter(function (t) { return t.id !== id; });
+    save(); renderSpan();
+  } else if (btn.classList.contains('due-cal')) {
+    var dueInput = spanListEl.querySelector('input.due-input[data-sid="' + id + '"]');
+    if (dueInput) {
+      try {
+        if (typeof dueInput.showPicker === 'function') dueInput.showPicker();
+        else dueInput.click();
+      } catch (err) { dueInput.click(); }
+    }
+  }
+});
+spanListEl.addEventListener('input', function (e) {
+  var target = spanTasks().find(function (t) { return t.id === e.target.dataset.sid; });
+  if (!target) return;
+  if (e.target.classList.contains('span-input')) { target.text = e.target.value; save(); }
+  else if (e.target.classList.contains('due-text')) { target.dueText = e.target.value; save(); }
+});
+spanListEl.addEventListener('change', function (e) {
+  if (!e.target.classList.contains('due-input')) return;
+  var target = spanTasks().find(function (t) { return t.id === e.target.dataset.sid; });
+  if (target && e.target.value) { target.due = e.target.value; target.dueText = ''; save(); renderSpan(); }
+});
+
+/* ===== 添加大任务（默认 7 天后截止） ===== */
+document.getElementById('spanAdd').addEventListener('click', function () {
+  var id = uid();
+  spanTasks().push({ id: id, text: '', done: false, due: defaultDue() });
+  save(); renderSpan(id);
+});
+
+/* ===== 添加每日任务 ===== */
+document.getElementById('addBtn').addEventListener('click', function () {
+  var id = uid();
+  tasksOf(currentDate).push({ id: id, text: '', done: false });
+  save(); renderTasks(id);
+});
+
+/* ===== 同步前一天未完成的任务 ===== */
+function keyOffset(key, delta) {
+  var p = key.split('-');
+  var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]) + delta);
+  return keyOf(d);
+}
+function flashSync(btn, msg) {
+  if (btn._flashTimer) clearTimeout(btn._flashTimer);
+  btn.textContent = msg;
+  btn._flashTimer = setTimeout(function () { btn.textContent = '同步昨日未完成'; }, 2200);
+}
+document.getElementById('syncBtn').addEventListener('click', function () {
+  var syncBtnEl = document.getElementById('syncBtn');
+  var prevKey = keyOffset(currentDate, -1);
+  var prevTasks = store[prevKey] || [];
+  var carry = prevTasks.filter(function (t) {
+    return !t.done && !t.failed && t.text.trim();
+  });
+  if (!carry.length) { flashSync(syncBtnEl, '昨日无未完成'); return; }
+  var todayTasks = tasksOf(currentDate);
+  var existing = todayTasks.map(function (t) { return t.text; });
+  var added = 0;
+  carry.forEach(function (t) {
+    if (existing.indexOf(t.text) === -1) {
+      todayTasks.push({ id: uid(), text: t.text, done: false, failed: false });
+      added++;
+    }
+  });
+  save();
+  renderTasks();
+  flashSync(syncBtnEl, added ? ('已同步 ' + added + ' 条') : '今日已存在');
+});
+
+/* ===== 日期切换 ===== */
+function shiftDate(delta) {
+  var parts = currentDate.split('-');
+  var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + delta);
+  currentDate = keyOf(d);
+  renderAll();
+}
+document.getElementById('prevDay').addEventListener('click', function () { shiftDate(-1); });
+document.getElementById('nextDay').addEventListener('click', function () { shiftDate(1); });
+
+document.getElementById('pickDate').addEventListener('click', function () {
+  try {
+    if (typeof dateInputEl.showPicker === 'function') dateInputEl.showPicker();
+    else dateInputEl.click();
+  } catch (e) { dateInputEl.click(); }
+});
+dateInputEl.addEventListener('change', function () {
+  if (dateInputEl.value) { currentDate = dateInputEl.value; renderAll(); }
+});
+
+/* ===== 大任务折叠（偏好单独持久化） ===== */
+var UI_KEY = 'daily-tasks-ui';
+var uiPrefs;
+try { uiPrefs = JSON.parse(localStorage.getItem(UI_KEY)) || {}; }
+catch (e2) { uiPrefs = {}; }
+var spanSectionEl = document.querySelector('.span-section');
+function applyCollapsed() {
+  var collapsed = !!uiPrefs.spanCollapsed;
+  spanSectionEl.classList.toggle('collapsed', collapsed);
+  document.getElementById('spanToggle').setAttribute('aria-expanded', String(!collapsed));
+}
+document.querySelector('.span-head').addEventListener('click', function () {
+  uiPrefs.spanCollapsed = !uiPrefs.spanCollapsed;
+  localStorage.setItem(UI_KEY, JSON.stringify(uiPrefs));
+  applyCollapsed();
+});
+
+/* ===== 隐蔽数据面板（折叠，默认收起） ===== */
+var dataDockEl = document.getElementById('dataDock');
+var importTextEl = document.getElementById('importText');
+var dockMsgEl = document.getElementById('dockMsg');
+var confirmImportEl = document.getElementById('confirmImport');
+var jsonFileEl = document.getElementById('jsonFile');
+
+function applyDock() {
+  dataDockEl.classList.toggle('open', !!uiPrefs.dockOpen);
+}
+document.getElementById('dockToggle').addEventListener('click', function () {
+  uiPrefs.dockOpen = !uiPrefs.dockOpen;
+  localStorage.setItem(UI_KEY, JSON.stringify(uiPrefs));
+  applyDock();
+});
+
+/* 内嵌的 AI 转换提示词，一键复制 */
+var AI_PROMPT = '你是计划格式转换助手。把我接下来给你的计划转换成指定 JSON，严格遵守：\n'
+  + '1. 只输出 JSON 本体，不要解释、不要 markdown 代码块、不要多余文字\n'
+  + '2. 每日任务放进 "daily" 并按日期分组，日期格式 YYYY-MM-DD；没写具体日期的任务，统一放到今天\n'
+  + '3. 跨几天或本周的大任务放进 "span"，"due" 填截止日期 YYYY-MM-DD；没说截止日期的，默认填 7 天后的日期\n'
+  + '4. 所有任务的 "done" 和 "failed" 一律填 false，"dueText" 填空字符串\n'
+  + '5. 输出结构：{"format":"daily-tasks","version":1,"daily":{"日期":[{"text":"任务","done":false,"failed":false}]},"span":[{"text":"大任务","due":"日期","done":false,"dueText":""}]}\n'
+  + '我的计划：';
+document.getElementById('copyPrompt').addEventListener('click', function (e) {
+  var btn = e.target;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(AI_PROMPT).then(function () {
+      btn.textContent = '已复制，去发给 AI';
+      setTimeout(function () { btn.textContent = '复制 AI 提示词'; }, 2000);
+    }).catch(function () { dockMsgEl.textContent = '复制失败，请长按手动选择'; });
+  } else {
+    dockMsgEl.textContent = '不支持一键复制，请长按手动选择';
+  }
+});
+
+/* 选择 json 文件 */
+document.getElementById('pickFileBtn').addEventListener('click', function () { jsonFileEl.click(); });
+jsonFileEl.addEventListener('change', function () {
+  var file = jsonFileEl.files && jsonFileEl.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function () { importTextEl.value = reader.result; };
+  reader.readAsText(file);
+});
+
+/* 把当前数据填入文本框（导出，长按可复制） */
+document.getElementById('buildExportBtn').addEventListener('click', function () {
+  importTextEl.value = buildExport();
+  dockMsgEl.textContent = '长按文本框可全选复制';
+});
+
+/* 确认导入 */
+confirmImportEl.addEventListener('click', function () {
+  var result = parseImport(importTextEl.value);
+  if (result.error) { dockMsgEl.textContent = result.error; return; }
+  if (!result.count) { dockMsgEl.textContent = '里面没有可导入的任务'; return; }
+  save(); renderAll();
+  dockMsgEl.textContent = '导入成功，共 ' + result.count + ' 条';
+  importTextEl.value = '';
+});
+
+/* 标准格式：daily 按日期分组，span 为跨天大任务 */
+function isDateKey(k) { return /^\d{4}-\d{2}-\d{2}$/.test(k); }
+function parseImport(jsonStr) {
+  var data;
+  try { data = JSON.parse(jsonStr); }
+  catch (e) { return { error: '不是合法 JSON：检查括号、引号和逗号是否完整' }; }
+  var count = 0;
+  if (data.daily && typeof data.daily === 'object') {
+    Object.keys(data.daily).forEach(function (k) {
+      if (!isDateKey(k) || !Array.isArray(data.daily[k])) return;
+      data.daily[k].forEach(function (item) {
+        if (!item || !item.text) return;
+        tasksOf(k).push({ id: uid(), text: String(item.text), done: !!item.done, failed: !!item.failed });
+        count++;
+      });
+    });
+  }
+  if (Array.isArray(data.span)) {
+    data.span.forEach(function (item) {
+      if (!item || !item.text) return;
+      spanTasks().push({
+        id: uid(),
+        text: String(item.text),
+        due: isDateKey(item.due) ? item.due : defaultDue(),
+        done: !!item.done,
+        dueText: item.dueText || ''
+      });
+      count++;
+    });
+  }
+  return { count: count };
+}
+
+function buildExport() {
+  var out = { format: 'daily-tasks', version: 1, daily: {}, span: [] };
+  Object.keys(store).forEach(function (k) {
+    if (k === SPAN_KEY || !Array.isArray(store[k]) || !store[k].length) return;
+    out.daily[k] = store[k].map(function (t) {
+      return { text: t.text, done: !!t.done, failed: !!t.failed };
+    });
+  });
+  out.span = spanTasks().map(function (t) {
+    return { text: t.text, due: t.due, done: !!t.done, dueText: t.dueText || '' };
+  });
+  return JSON.stringify(out, null, 2);
+}
+
+/* ===== 初始加载 ===== */
+renderAll();
+applyCollapsed();
+applyDock();
+</script>
+</body>
+</html>
